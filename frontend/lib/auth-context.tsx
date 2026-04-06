@@ -14,6 +14,7 @@ interface User {
   mfaEnabled: boolean;
   oauthProviders: string[];
   needsProfileCompletion: boolean;
+  measurementSystem?: 'metric' | 'imperial';
   createdAt: string;
 }
 

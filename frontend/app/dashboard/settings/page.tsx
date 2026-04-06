@@ -204,6 +204,30 @@ export default function SettingsPage() {
                   <div><span className="input-label">Name</span><p className="text-white">{user.fullName}</p></div>
                   <div><span className="input-label">Email</span><p className="text-white">{user.email} {user.emailVerified ? <span className="text-emerald-400 text-xs">✓ Verified</span> : <span className="text-amber-400 text-xs">⚠ Not verified</span>}</p></div>
                   <div><span className="input-label">Member since</span><p className="text-slate-300">{new Date(user.createdAt).toLocaleDateString()}</p></div>
+                  
+                  <div className="mt-6 pt-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+                    <span className="input-label">Measurement System</span>
+                    <select 
+                      className="input-field max-w-xs"
+                      value={user.measurementSystem || 'metric'}
+                      onChange={async (e) => {
+                        const newSystem = e.target.value;
+                        const res = await apiFetch('/auth/profile', {
+                          method: 'PATCH',
+                          body: JSON.stringify({ measurementSystem: newSystem })
+                        });
+                        if (res.ok) {
+                          showMessage('success', 'Measurement preference updated');
+                          await refreshUser();
+                        } else {
+                          showMessage('error', 'Failed to update measurement preference');
+                        }
+                      }}
+                    >
+                      <option value="metric">Metric (cm, kg)</option>
+                      <option value="imperial">Imperial (ft/in, lbs)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             )}

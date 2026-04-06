@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { cmToFeetAndInches, feetAndInchesToCm, kgToLbs, lbsToKg } from '@/lib/measurements';
 
 const SECTION_TITLES = [
   { key: 'my_stats', title: 'My Stats', icon: '📊', desc: 'Basic info about you' },
@@ -141,12 +142,60 @@ function IntakeContent() {
   function renderSection() {
     switch (sectionKey) {
       case 'my_stats':
+        const isImperial = user?.measurementSystem === 'imperial';
+        const currentHeight = sectionData.heightCm;
+        const impHeight = currentHeight ? cmToFeetAndInches(currentHeight) : { feet: '', inches: '' };
+        
         return (
           <>
             {renderField('Age', 'age', 'number', { placeholder: 'Your age', min: 13, max: 120 })}
             {renderField('Biological Sex', 'biologicalSex', 'text', { choices: ['male', 'female'] })}
-            {renderField('Height (cm)', 'heightCm', 'number', { placeholder: 'e.g. 175', min: 100, max: 250 })}
-            {renderField('Current Weight (kg)', 'weightKg', 'number', { placeholder: 'e.g. 80', min: 30, max: 300 })}
+            
+            {isImperial ? (
+              <>
+                <div className="mb-5">
+                   <label className="input-label">Height</label>
+                   <div className="flex gap-4">
+                     <input 
+                       type="number" 
+                       placeholder="Feet" 
+                       className="input-field" 
+                       value={impHeight.feet}
+                       onChange={(e) => {
+                         const currentInches = sectionData.heightCm ? cmToFeetAndInches(sectionData.heightCm).inches : 0;
+                         updateField('my_stats', 'heightCm', feetAndInchesToCm(Number(e.target.value), currentInches));
+                       }}
+                     />
+                     <input 
+                       type="number" 
+                       placeholder="Inches" 
+                       className="input-field" 
+                       value={impHeight.inches}
+                       onChange={(e) => {
+                         const currentFeet = sectionData.heightCm ? cmToFeetAndInches(sectionData.heightCm).feet : 0;
+                         updateField('my_stats', 'heightCm', feetAndInchesToCm(currentFeet, Number(e.target.value)));
+                       }}
+                     />
+                   </div>
+                </div>
+
+                <div className="mb-5">
+                   <label className="input-label">Current Weight (lbs)</label>
+                   <input 
+                     type="number" 
+                     className="input-field" 
+                     value={sectionData.weightKg ? kgToLbs(sectionData.weightKg) : ''}
+                     onChange={(e) => updateField('my_stats', 'weightKg', lbsToKg(Number(e.target.value)))}
+                   />
+                </div>
+              </>
+            ) : (
+              <>
+                {renderField('Height (cm)', 'heightCm', 'number', { placeholder: 'e.g. 175', min: 100, max: 250 })}
+                {renderField('Current Weight (kg)', 'weightKg', 'number', { placeholder: 'e.g. 80', min: 30, max: 300 })}
+              </>
+            )}
+
             {renderField('Goal Target or Feeling', 'goalTarget', 'text', { placeholder: 'e.g. "Feel healthier" or "Have more energy"', multiline: false })}
             {renderField('Preferred Plan Language', 'language', 'text', { choices: ['English', 'Português', 'Español', 'Français', 'Deutsch'] })}
             {renderField('Timeline Preference', 'timeline', 'text', { choices: ['Steady & sustainable', 'Moderately aggressive', 'No rush'] })}

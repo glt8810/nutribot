@@ -20,6 +20,7 @@ import {
   mfaDisableSchema,
   deleteAccountSchema,
   completeProfileSchema,
+  updateProfileSchema,
 } from '../validators/auth';
 import {
   registerUser,
@@ -45,6 +46,7 @@ import {
   getGoogleAuthUrl,
   handleGoogleCallback,
   completeProfile,
+  updateMeasurementSystem,
 } from '../services/auth.service';
 import * as QRCode from 'qrcode';
 
@@ -312,6 +314,17 @@ router.post('/mfa/disable', authMiddleware, validateBody(mfaDisableSchema), asyn
     }
     console.error('[Auth] MFA disable error:', err);
     res.status(500).json({ error: 'Failed to disable MFA.' });
+  }
+});
+
+// PATCH /auth/profile (authenticated)
+router.patch('/profile', authMiddleware, validateBody(updateProfileSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    await updateMeasurementSystem(req.userId!, req.body.measurementSystem);
+    res.json({ message: 'Profile updated successfully.' });
+  } catch (err) {
+    console.error('[Auth] Update profile error:', err);
+    res.status(500).json({ error: 'Failed to update profile.' });
   }
 });
 

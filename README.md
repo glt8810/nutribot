@@ -8,6 +8,7 @@ An enterprise-grade AI nutritionist consultation app that guides users through a
 
 - **12 Nutrition Goals** — Fat loss, muscle gain, body recomp, energy boost, gut health, sports performance, plant-based transition, ED recovery, pregnancy/postpartum, medical nutrition, family meal planning, and longevity
 - **Adaptive Intake Wizard** — 4-section questionnaire with goal-specific fields that dynamically adjust based on the selected goal
+- **Localized Measurements** — Store standard metric data and dynamically convert to imperial units for display based on user preferences
 - **10 AI-Generated Plan Modules** — Calorie breakdown, macro targets, 7-day meal plan, snack swaps, personal rules, timeline, hydration, supplements, grocery list, and progress tracking
 - **Multilingual Support** — Generate plans in English, Português, Español, Français, or Deutsch with JSON schema integrity preserved
 - **Regional Cuisine Deep-Dive** — Specify regional dishes and culinary traditions for culturally authentic meal plans
@@ -126,6 +127,7 @@ cd frontend && npm run dev
 | `POST` | `/auth/refresh` | Refresh access token |
 | `POST` | `/auth/logout` | Invalidate session |
 | `GET` | `/auth/profile` | Get user profile (decrypts PII) |
+| `PATCH` | `/auth/profile` | Update user profile preferences |
 | `POST` | `/auth/verify-email` | Verify email with token |
 | `POST` | `/auth/forgot-password` | Request password reset |
 | `POST` | `/auth/reset-password` | Reset password with token |

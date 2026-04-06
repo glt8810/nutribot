@@ -684,6 +684,7 @@ export async function getUserProfile(userId: string) {
       avatarUrl: true,
       passwordHash: true,
       mfaEnabled: true,
+      measurementSystem: true,
       createdAt: true,
       oauthAccounts: {
         select: { provider: true },
@@ -704,8 +705,27 @@ export async function getUserProfile(userId: string) {
     mfaEnabled: user.mfaEnabled,
     oauthProviders: user.oauthAccounts.map((oa) => oa.provider),
     needsProfileCompletion: !user.dateOfBirthEnc,
+    measurementSystem: user.measurementSystem,
     createdAt: user.createdAt,
   };
+}
+
+export async function updateMeasurementSystem(userId: string, measurementSystem: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('USER_NOT_FOUND');
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { measurementSystem },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId,
+      eventType: 'PROFILE_UPDATED',
+      metadata: { measurementSystem },
+    },
+  });
 }
 
 export async function deleteAccount(userId: string, password?: string) {
