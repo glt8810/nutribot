@@ -774,9 +774,13 @@ export async function exportUserData(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      goals: {
+      profiles: {
         include: {
           intakeResponses: true,
+        },
+      },
+      goals: {
+        include: {
           nutritionPlans: {
             include: {
               modules: {
@@ -807,13 +811,14 @@ export async function exportUserData(userId: string) {
       mfaEnabled: user.mfaEnabled,
       createdAt: user.createdAt,
     },
-    goals: user.goals.map((g: any) => ({
-      ...g,
-      intakeResponses: g.intakeResponses.map((r: any) => ({
+    profiles: user.profiles.map((p: any) => ({
+      ...p,
+      intakeResponses: p.intakeResponses.map((r: any) => ({
         ...r,
         responses: JSON.parse(decrypt(r.responsesEnc)),
       })),
     })),
+    goals: user.goals,
     auditLog: user.auditLogs,
   };
 

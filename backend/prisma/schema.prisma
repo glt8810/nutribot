@@ -32,6 +32,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   goals                   Goal[]
+  profiles                Profile[]
   auditLogs               AuditLog[]
   oauthAccounts           OAuthAccount[]
 
@@ -92,14 +93,31 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  intakeResponses IntakeResponse[]
+  goals           Goal[]
+
+  @@index([userId])
+  @@map("profiles")
+}
+
 model Goal {
   id         String   @id @default(uuid())
   userId     String   @map("user_id")
+  profileId  String   @map("profile_id")
   goalType   String   @map("goal_type")
+  extrasEnc  String?  @map("extras_enc") // AES-256-GCM encrypted JSON for goal-specifics
   selectedAt DateTime @default(now()) @map("selected_at")
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  intakeResponses  IntakeResponse[]
+  profile          Profile           @relation(fields: [profileId], references: [id], onDelete: Cascade)
   nutritionPlans   NutritionPlan[]
 
   @@index([userId])
@@ -107,15 +125,15 @@ model Goal {
 }
 
 model IntakeResponse {
-  id          String   @id @default(uuid())
-  goalId      String   @map("goal_id")
-  section     String
-  responsesEnc String  @map("responses_enc") // AES-256-GCM encrypted JSONB
-  completedAt DateTime @default(now()) @map("completed_at")
+  id           String   @id @default(uuid())
+  profileId    String   @map("profile_id")
+  section      String
+  responsesEnc String   @map("responses_enc") // AES-256-GCM encrypted JSONB
+  completedAt  DateTime @default(now()) @map("completed_at")
 
-  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@index([goalId])
+  @@index([profileId])
   @@map("intake_responses")
 }
 

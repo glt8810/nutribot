@@ -3,11 +3,20 @@ import { GOAL_TYPES, INTAKE_SECTIONS } from '../lib/constants';
 
 export const createGoalSchema = z.object({
   goalType: z.enum(GOAL_TYPES as any),
+  profileId: z.string().uuid(),
 });
 
 export const saveIntakeSchema = z.object({
   section: z.enum(INTAKE_SECTIONS as any),
   responses: z.record(z.any()),
+});
+
+export const createProfileSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+
+export const saveExtrasSchema = z.object({
+  extras: z.record(z.any()),
 });
 
 export const goalIdParamSchema = z.object({

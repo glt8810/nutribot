@@ -49,8 +49,9 @@ nutribot/
 │   ├── app/
 │   │   ├── page.tsx               # Landing page
 │   │   ├── auth/                  # Register, login, verify email, password reset
-│   │   ├── goals/                 # Goal selection (12 cards)
+│   │   ├── profiles/              # Profile selection and creation
 │   │   ├── intake/                # 4-section adaptive wizard
+│   │   ├── goals/                 # Goal selection and conditional extras
 │   │   ├── generating/            # Plan generation progress
 │   │   └── dashboard/             # Plan view, settings, history
 │   └── lib/                       # API client, auth context
@@ -137,14 +138,18 @@ cd frontend && npm run dev
 | `GET` | `/auth/export` | GDPR data export |
 | `DELETE` | `/auth/account` | Soft-delete account |
 
-### Goal & Intake Endpoints
+### Profile, Goal & Intake Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/goals` | Create a new goal |
+| `GET` | `/profiles` | List user's profiles |
+| `POST` | `/profiles` | Create a new profile |
+| `GET` | `/profiles/:id/intake` | Get saved profile intake responses |
+| `POST` | `/profiles/:id/intake` | Save profile intake section |
+| `POST` | `/goals` | Create a new goal linked to a profile |
 | `GET` | `/goals` | List user's goals |
-| `GET` | `/goals/:id/intake` | Get saved intake responses |
-| `POST` | `/goals/:id/intake` | Save intake section |
+| `POST` | `/goals/:id/extras` | Save goal-specific conditional data |
+| `DELETE` | `/goals/:id` | Delete a goal |
 
 ### Plan Endpoints
 

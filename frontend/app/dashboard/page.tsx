@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
         {/* Quick actions */}
         <div className="grid md:grid-cols-3 gap-4 mb-10">
-          <Link href="/goals" className="glass-card p-6 hover:border-emerald-500/20 transition-all group">
+          <Link href="/profiles" className="glass-card p-6 hover:border-emerald-500/20 transition-all group">
             <div className="text-3xl mb-3">🎯</div>
             <h3 className="font-semibold mb-1 group-hover:text-emerald-400 transition-colors">New Plan</h3>
             <p className="text-sm text-slate-400">Start a new nutrition plan for any goal</p>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
               <div className="text-5xl mb-4">🌟</div>
               <h3 className="text-xl font-semibold mb-2">No plans yet</h3>
               <p className="text-slate-400 mb-6">Create your first nutrition plan to get started!</p>
-              <Link href="/goals" className="btn-primary">Create Your First Plan →</Link>
+              <Link href="/profiles" className="btn-primary">Create Your First Plan →</Link>
             </div>
           ) : (
             <div className="space-y-3">

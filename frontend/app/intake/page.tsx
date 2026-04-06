@@ -17,8 +17,7 @@ function IntakeContent() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
-  const goalId = searchParams.get('goalId');
-  const goalType = searchParams.get('goalType') || '';
+  const profileId = searchParams.get('profileId');
   const [currentSection, setCurrentSection] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
@@ -26,13 +25,13 @@ function IntakeContent() {
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/auth/login');
-    if (!goalId) router.push('/goals');
-  }, [user, authLoading, router, goalId]);
+    if (!profileId) router.push('/profiles');
+  }, [user, authLoading, router, profileId]);
 
   // Load existing responses
   useEffect(() => {
-    if (!goalId || !user) return;
-    apiFetch(`/goals/${goalId}/intake`).then(async r => {
+    if (!profileId || !user) return;
+    apiFetch(`/profiles/${profileId}/intake`).then(async r => {
       if (r.ok) {
         const data = await r.json();
         const loaded: Record<string, any> = {};
@@ -46,7 +45,7 @@ function IntakeContent() {
         else if (data.isComplete) setCurrentSection(3); // All done
       }
     });
-  }, [goalId, user]);
+  }, [profileId, user]);
 
   function updateField(section: string, field: string, value: any) {
     setResponses(prev => ({
@@ -56,10 +55,10 @@ function IntakeContent() {
   }
 
   async function saveSection(sectionKey: string) {
-    if (!goalId) return;
+    if (!profileId) return;
     setSaving(true); setError('');
     try {
-      const res = await apiFetch(`/goals/${goalId}/intake`, {
+      const res = await apiFetch(`/profiles/${profileId}/intake`, {
         method: 'POST',
         body: JSON.stringify({ section: sectionKey, responses: responses[sectionKey] || {} }),
       });
@@ -84,8 +83,8 @@ function IntakeContent() {
       if (currentSection < 3) {
         setCurrentSection(currentSection + 1);
       } else {
-        // All complete — go to generating
-        router.push(`/generating?goalId=${goalId}&goalType=${goalType}`);
+        // All complete — return to profiles
+        router.push(`/profiles`);
       }
     }
   }
@@ -148,31 +147,9 @@ function IntakeContent() {
             {renderField('Biological Sex', 'biologicalSex', 'text', { choices: ['male', 'female'] })}
             {renderField('Height (cm)', 'heightCm', 'number', { placeholder: 'e.g. 175', min: 100, max: 250 })}
             {renderField('Current Weight (kg)', 'weightKg', 'number', { placeholder: 'e.g. 80', min: 30, max: 300 })}
-            {renderField('Goal Weight or Feeling', 'goalTarget', 'text', { placeholder: 'e.g. "75 kg" or "I just want more energy"', multiline: false })}
+            {renderField('Goal Target or Feeling', 'goalTarget', 'text', { placeholder: 'e.g. "Feel healthier" or "Have more energy"', multiline: false })}
             {renderField('Preferred Plan Language', 'language', 'text', { choices: ['English', 'Português', 'Español', 'Français', 'Deutsch'] })}
             {renderField('Timeline Preference', 'timeline', 'text', { choices: ['Steady & sustainable', 'Moderately aggressive', 'No rush'] })}
-            {goalType === 'pregnancy' && (
-              <>
-                {renderField('Current Trimester / Postpartum Week', 'trimester', 'text', { choices: ['1st trimester', '2nd trimester', '3rd trimester', 'Postpartum'] })}
-                {renderField('Are you breastfeeding?', 'breastfeeding', 'text', { choices: ['Yes', 'No'] })}
-                {renderField('Food aversions or nausea triggers?', 'aversions', 'text', { placeholder: 'e.g. "can\'t stand the smell of fish"', multiline: true })}
-              </>
-            )}
-            {goalType === 'medical' && (
-              <>
-                {renderField('Which condition(s)?', 'conditions', 'text', { placeholder: 'e.g. Type 2 diabetes, PCOS, IBS', multiline: true })}
-                {renderField('Medications affecting appetite/weight/absorption?', 'medications', 'text', { placeholder: 'List any relevant medications', multiline: true })}
-                {renderField('Are you working with a doctor?', 'workingWithDoctor', 'text', { choices: ['Yes', 'No', 'Planning to'] })}
-                <div className="banner banner-warning mb-5">⚠️ This app does not replace medical advice. Always consult your healthcare provider.</div>
-              </>
-            )}
-            {goalType === 'sports' && (
-              <>
-                {renderField('Sport / Discipline', 'sport', 'text', { placeholder: 'e.g. Marathon running, CrossFit, Boxing' })}
-                {renderField('Competition Schedule', 'competitionSchedule', 'text', { choices: ['Offseason', 'Pre-competition', 'In-season', 'Peaking'] })}
-                {renderField('Training Volume', 'trainingVolume', 'text', { placeholder: 'e.g. "10 hours/week, 5 sessions"' })}
-              </>
-            )}
           </>
         );
 
@@ -186,14 +163,6 @@ function IntakeContent() {
             {renderField('Current Stress Levels', 'stressLevel', 'text', { choices: ['Low', 'Moderate', 'High', 'Extreme'] })}
             {renderField('Alcohol Consumption', 'alcohol', 'text', { choices: ['None', 'Rarely (1-2/month)', 'Moderate (3-7/week)', 'Heavy (8+/week)'] })}
             {renderField('Smoking / Nicotine Use', 'smoking', 'text', { choices: ['No', 'Occasionally', 'Yes, daily'] })}
-            {goalType === 'family' && (
-              <>
-                {renderField('Household Size & Ages', 'householdSize', 'text', { placeholder: 'e.g. "2 adults, 1 teenager (15), 1 child (7)"' })}
-                {renderField('Who does the cooking?', 'whoCooks', 'text', { placeholder: 'e.g. "Mostly me", "We share"' })}
-                {renderField('Weekly Grocery Budget', 'groceryBudget', 'text', { choices: ['Under $75', '$75-$125', '$125-$200', '$200+', 'Flexible'] })}
-                {renderField('Biggest Meal Planning Pain Point', 'painPoint', 'text', { choices: ['Picky eaters', 'Time', 'Cost', 'Variety', 'Healthy options kids will eat'] })}
-              </>
-            )}
           </>
         );
 
@@ -208,22 +177,6 @@ function IntakeContent() {
             {renderField('Cooking Style', 'cookingStyle', 'text', { choices: ['From scratch', 'Quick meals (<20 min)', 'Meal prepping', 'Mostly eat out / order in'] })}
             {renderField('Food Adventurousness (1–10)', 'adventurousness', 'number', { placeholder: '1 = very picky, 10 = will try anything', min: 1, max: 10 })}
             {renderField('Cultural / Traditional Foods to Include?', 'culturalFoods', 'text', { placeholder: 'Any specific cuisines or traditional dishes you love', multiline: true })}
-            {goalType === 'plant_based' && (
-              <>
-                {renderField('Current Level', 'currentLevel', 'text', { choices: ['Omnivore', 'Flexitarian', 'Pescatarian', 'Vegetarian', 'Mostly vegan'] })}
-                {renderField('Target Level', 'targetLevel', 'text', { choices: ['Flexitarian', 'Vegetarian', 'Vegan', 'Not sure yet'] })}
-                {renderField('Plant-Based Foods You Already Enjoy', 'plantFoodsLiked', 'text', { multiline: true, placeholder: 'e.g. Chickpeas, tofu, lentils, avocado' })}
-                {renderField('Animal Products Hardest to Give Up?', 'hardestToGiveUp', 'text', { multiline: true, placeholder: 'e.g. Cheese, eggs, steak' })}
-              </>
-            )}
-            {goalType === 'gut_health' && (
-              <>
-                {renderField('Current Digestive Symptoms', 'digestiveSymptoms', 'text', { multiline: true, placeholder: 'e.g. Bloating after meals, irregular bowel movements' })}
-                {renderField('Known Trigger Foods', 'triggerFoods', 'text', { multiline: true, placeholder: 'e.g. Garlic, onion, dairy, spicy food' })}
-                {renderField('Tested for Intolerances?', 'intoleranceTested', 'text', { choices: ['Yes', 'No', 'Planning to'] })}
-                {renderField('Current Probiotic/Prebiotic Use?', 'probioticUse', 'text', { multiline: true, placeholder: 'e.g. "Daily probiotic capsule" or "None"' })}
-              </>
-            )}
           </>
         );
 
@@ -250,7 +203,7 @@ function IntakeContent() {
         {/* Progress */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => router.push('/goals')} className="btn-ghost text-sm">← Back to Goals</button>
+            <button onClick={() => router.push('/profiles')} className="btn-ghost text-sm">← Back to Profiles</button>
             <span className="text-sm text-slate-400">Step {currentSection + 1} of 4</span>
           </div>
           <div className="progress-bar">

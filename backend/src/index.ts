@@ -3,6 +3,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { helmetMiddleware, corsMiddleware, securityHeaders, requestSizeLimit } from './middleware/security';
 import authRoutes from './routes/auth';
+import profileRoutes from './routes/profiles';
 import goalRoutes from './routes/goals';
 import planRoutes from './routes/plans';
 import { connectRedis } from './lib/redis';
@@ -32,6 +33,7 @@ app.get('/health', (_req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/profiles', profileRoutes);
 app.use('/goals', goalRoutes);
 app.use('/plans', planRoutes);
 

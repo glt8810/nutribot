@@ -16,9 +16,9 @@ interface IntakeData {
   my_snack_habits: any;
 }
 
-async function getIntakeData(goalId: string): Promise<IntakeData> {
+async function getIntakeData(profileId: string): Promise<IntakeData> {
   const responses = await prisma.intakeResponse.findMany({
-    where: { goalId },
+    where: { profileId },
   });
 
   const data: any = {};
@@ -74,8 +74,8 @@ export async function generatePlan(userId: string, goalId: string) {
 
   if (!goal) throw new Error('GOAL_NOT_FOUND');
 
-  // Get intake data
-  const intakeData = await getIntakeData(goalId);
+  // Get intake data using the profile associated with the goal
+  const intakeData = await getIntakeData(goal.profileId);
 
   if (!intakeData.my_stats || !intakeData.my_lifestyle || !intakeData.my_food_prefs || !intakeData.my_snack_habits) {
     throw new Error('INTAKE_INCOMPLETE');
@@ -99,7 +99,7 @@ export async function generatePlan(userId: string, goalId: string) {
         lifestyle: intakeData.my_lifestyle,
         foodPrefs: intakeData.my_food_prefs,
         snackHabits: intakeData.my_snack_habits,
-        calculations,
+        calculations: calculations as any,
       },
       expiresAt: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // 4 weeks
     },
@@ -108,12 +108,15 @@ export async function generatePlan(userId: string, goalId: string) {
   // Determine which modules to generate
   const modulesToGenerate = GOAL_MODULES[goal.goalType as GoalType] || [];
 
+  const extras = goal.extrasEnc ? decryptJSON(goal.extrasEnc) : {};
+
   const context = {
     goalType: goal.goalType as GoalType,
     stats: intakeData.my_stats,
     lifestyle: intakeData.my_lifestyle,
     foodPrefs: intakeData.my_food_prefs,
     snackHabits: intakeData.my_snack_habits,
+    extras,
     calculations,
   };
 

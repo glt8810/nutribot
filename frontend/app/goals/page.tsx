@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -23,27 +23,30 @@ const GOALS = [
 
 export default function GoalsPage() {
   const { user, loading } = useAuth();
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const profileId = searchParams.get('profileId');
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/auth/login');
-  }, [user, loading, router]);
+    if (!profileId) router.push('/profiles');
+  }, [user, loading, router, profileId]);
 
   async function handleContinue() {
-    if (!selected) return;
+    if (!selected || !profileId) return;
     setSubmitting(true);
     setError('');
     try {
       const res = await apiFetch('/goals', {
         method: 'POST',
-        body: JSON.stringify({ goalType: selected }),
+        body: JSON.stringify({ goalType: selected, profileId }),
       });
       if (res.ok) {
         const data = await res.json();
-        router.push(`/intake?goalId=${data.id}&goalType=${selected}`);
+        router.push(`/goals/extras?goalId=${data.id}&goalType=${selected}`);
       } else {
         const d = await res.json();
         setError(d.error || 'Failed to create goal');
@@ -62,7 +65,7 @@ export default function GoalsPage() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <Link href="/dashboard" className="btn-ghost text-sm">← Dashboard</Link>
+          <Link href="/profiles" className="btn-ghost text-sm">← Profiles</Link>
           <div className="flex items-center space-x-2">
             <span className="text-xl">🥗</span>
             <span className="font-bold gradient-text">NutriBot</span>
@@ -111,7 +114,7 @@ export default function GoalsPage() {
             disabled={!selected || submitting}
             className="btn-primary text-lg !px-12 !py-4"
           >
-            {submitting ? <span className="spinner" /> : 'Continue to Questionnaire →'}
+            {submitting ? <span className="spinner" /> : 'Continue to Details →'}
           </button>
         </div>
       </div>
