@@ -11,9 +11,10 @@ model User {
   id               String    @id @default(uuid())
   email            String    @unique
   emailVerified    Boolean   @default(false) @map("email_verified")
-  passwordHash     String    @map("password_hash")
+  passwordHash     String?   @map("password_hash")
   fullNameEnc      String    @map("full_name_enc") // AES-256-GCM encrypted
-  dateOfBirthEnc   String    @map("date_of_birth_enc") // AES-256-GCM encrypted
+  dateOfBirthEnc   String?   @map("date_of_birth_enc") // AES-256-GCM encrypted
+  avatarUrl        String?   @map("avatar_url")
   mfaEnabled       Boolean   @default(false) @map("mfa_enabled")
   mfaSecretEnc     String?   @map("mfa_secret_enc") // AES-256-GCM encrypted TOTP secret
   mfaBackupHashes  String    @default("") @map("mfa_backup_hashes") // JSON array of Argon2 hashed backup codes

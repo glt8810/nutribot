@@ -78,5 +78,17 @@ export const mfaDisableSchema = z.object({
 });
 
 export const deleteAccountSchema = z.object({
-  password: z.string().min(1),
+  password: z.string().min(1).optional(),
+});
+
+export const completeProfileSchema = z.object({
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+}).refine(data => {
+  const dob = new Date(data.dateOfBirth);
+  const today = new Date();
+  const age = today.getFullYear() - dob.getFullYear();
+  return age >= 13;
+}, {
+  message: 'You must be at least 13 years old',
+  path: ['dateOfBirth'],
 });

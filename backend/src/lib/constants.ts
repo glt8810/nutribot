@@ -62,6 +62,9 @@ export const AUDIT_EVENTS = {
   SESSION_REVOKED: 'session_revoked',
   LOGOUT: 'logout',
   LOGOUT_ALL: 'logout_all',
+  OAUTH_LOGIN: 'oauth_login',
+  OAUTH_LINK: 'oauth_link',
+  PROFILE_COMPLETE: 'profile_complete',
 } as const;
 
 // Security constants

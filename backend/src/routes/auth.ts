@@ -19,6 +19,7 @@ import {
   mfaSetupConfirmSchema,
   mfaDisableSchema,
   deleteAccountSchema,
+  completeProfileSchema,
 } from '../validators/auth';
 import {
   registerUser,
@@ -41,6 +42,9 @@ import {
   revokeSession,
   exportUserData,
   checkPasswordBreach,
+  getGoogleAuthUrl,
+  handleGoogleCallback,
+  completeProfile,
 } from '../services/auth.service';
 import * as QRCode from 'qrcode';
 
@@ -106,12 +110,14 @@ router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Reque
       return res.json({ requireMfa: true, userId: result.userId });
     }
 
+    const session = result as { accessToken: string; refreshToken: string; userId: string };
+
     // Set refresh token cookie
-    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+    res.cookie('refreshToken', session.refreshToken, REFRESH_COOKIE_OPTIONS);
 
     res.json({
-      accessToken: result.accessToken,
-      userId: result.userId,
+      accessToken: session.accessToken,
+      userId: session.userId,
     });
   } catch (err: any) {
     if (err.message === 'INVALID_CREDENTIALS') {
@@ -122,6 +128,9 @@ router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Reque
     }
     if (err.message === 'ACCOUNT_LOCKED_PERMANENT') {
       return res.status(423).json({ error: 'Account locked. Please reset your password or contact support.' });
+    }
+    if (err.message === 'OAUTH_ONLY_ACCOUNT') {
+      return res.status(400).json({ error: 'This account uses Google Sign-In. Please use the "Continue with Google" button.' });
     }
     console.error('[Auth] Login error:', err);
     res.status(500).json({ error: 'Login failed. Please try again.' });
@@ -331,7 +340,7 @@ router.get('/sessions', authMiddleware, async (req: AuthRequest, res: Response) 
 // DELETE /auth/sessions/:sessionId (authenticated)
 router.delete('/sessions/:sessionId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    await revokeSession(req.userId!, req.params.sessionId);
+    await revokeSession(req.userId!, req.params.sessionId as string);
     res.json({ message: 'Session revoked.' });
   } catch (err) {
     console.error('[Auth] Revoke session error:', err);
@@ -360,8 +369,109 @@ router.post('/delete-account', authMiddleware, validateBody(deleteAccountSchema)
     if (err.message === 'INVALID_PASSWORD') {
       return res.status(401).json({ error: 'Incorrect password.' });
     }
+    if (err.message === 'OAUTH_ONLY_ACCOUNT') {
+      return res.status(400).json({ error: 'Cannot change password on an OAuth-only account.' });
+    }
     console.error('[Auth] Delete account error:', err);
     res.status(500).json({ error: 'Failed to delete account.' });
+  }
+});
+
+// ─── Google OAuth ───────────────────────────────────────────────────
+
+// GET /auth/google — redirect to Google consent page
+router.get('/google', loginLimiter, (_req: Request, res: Response) => {
+  try {
+    const { url, state } = JSON.parse(getGoogleAuthUrl());
+
+    // Store the state in a short-lived cookie for CSRF verification
+    res.cookie('oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      path: '/',
+    });
+
+    res.redirect(url);
+  } catch (err) {
+    console.error('[Auth] Google OAuth URL error:', err);
+    res.status(500).json({ error: 'Failed to initiate Google sign-in.' });
+  }
+});
+
+// GET /auth/google/callback — handle Google's redirect
+router.get('/google/callback', async (req: Request, res: Response) => {
+  const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  try {
+    const { code, state, error: oauthError } = req.query;
+
+    if (oauthError) {
+      console.error('[Auth] Google OAuth error:', oauthError);
+      return res.redirect(`${FRONTEND_URL}/auth/login?error=google_denied`);
+    }
+
+    if (!code || typeof code !== 'string') {
+      return res.redirect(`${FRONTEND_URL}/auth/login?error=google_no_code`);
+    }
+
+    // Verify CSRF state
+    const storedState = req.cookies?.oauth_state;
+    if (!storedState || storedState !== state) {
+      return res.redirect(`${FRONTEND_URL}/auth/login?error=google_csrf`);
+    }
+
+    // Clear the state cookie
+    res.clearCookie('oauth_state', { path: '/' });
+
+    const result = await handleGoogleCallback(
+      code,
+      req.ip,
+      req.headers['user-agent']
+    );
+
+    // Set refresh token cookie
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Redirect to frontend callback page with access token
+    const params = new URLSearchParams({
+      token: result.accessToken,
+      needsProfile: result.needsProfileCompletion ? '1' : '0',
+    });
+
+    res.redirect(`${FRONTEND_URL}/auth/callback?${params.toString()}`);
+  } catch (err: any) {
+    console.error('[Auth] Google callback error:', err);
+
+    if (err.message === 'ACCOUNT_EXISTS_LINK_REQUIRED') {
+      return res.redirect(`${FRONTEND_URL}/auth/login?error=account_exists_link_required`);
+    }
+    if (err.message === 'ACCOUNT_DELETED') {
+      return res.redirect(`${FRONTEND_URL}/auth/login?error=account_deleted`);
+    }
+
+    res.redirect(`${FRONTEND_URL}/auth/login?error=google_failed`);
+  }
+});
+
+// POST /auth/complete-profile (authenticated)
+router.post('/complete-profile', authMiddleware, validateBody(completeProfileSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    await completeProfile(req.userId!, req.body.dateOfBirth);
+    res.json({ message: 'Profile completed successfully.' });
+  } catch (err: any) {
+    if (err.message === 'AGE_REQUIREMENT') {
+      return res.status(400).json({ error: 'You must be at least 13 years old to use NutriBot.' });
+    }
+    console.error('[Auth] Complete profile error:', err);
+    res.status(500).json({ error: 'Failed to complete profile.' });
   }
 });
 

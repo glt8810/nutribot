@@ -1,15 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { apiFetch, setAccessToken, getAccessToken, apiLogout } from './api';
+import { apiFetch, setAccessToken, apiLogout } from './api';
 
 interface User {
   id: string;
   email: string;
   emailVerified: boolean;
   fullName: string;
-  dateOfBirth: string;
+  dateOfBirth: string | null;
+  avatarUrl: string | null;
+  hasPassword: boolean;
   mfaEnabled: boolean;
+  oauthProviders: string[];
+  needsProfileCompletion: boolean;
   createdAt: string;
 }
 

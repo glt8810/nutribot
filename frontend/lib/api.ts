@@ -145,3 +145,16 @@ export async function apiResetPassword(token: string, password: string, confirmP
   });
   return { ok: res.ok, data: await res.json() };
 }
+
+export function getGoogleAuthUrl(): string {
+  // Redirect to backend endpoint which redirects to Google
+  return `${API_BASE}/auth/google`;
+}
+
+export async function apiCompleteProfile(dateOfBirth: string) {
+  const res = await apiFetch('/auth/complete-profile', {
+    method: 'POST',
+    body: JSON.stringify({ dateOfBirth }),
+  });
+  return { ok: res.ok, data: await res.json() };
+}

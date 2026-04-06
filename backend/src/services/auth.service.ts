@@ -22,6 +22,14 @@ import {
   PASSWORD_MIN_LENGTH,
 } from '../lib/constants';
 import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendSessionLimitEmail } from './email.service';
+import { OAuth2Client } from 'google-auth-library';
+
+// Google OAuth client
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:4000/auth/google/callback'
+);
 
 // Argon2id parameters — reduced in dev for faster testing
 const isDev = process.env.NODE_ENV !== 'production';
@@ -158,6 +166,11 @@ export async function loginUser(input: LoginInput) {
     // Timing attack prevention: hash dummy value
     await argon2.verify(DUMMY_HASH, password).catch(() => {});
     throw new Error('INVALID_CREDENTIALS');
+  }
+
+  // OAuth-only users cannot log in with password
+  if (!user.passwordHash) {
+    throw new Error('OAUTH_ONLY_ACCOUNT');
   }
 
   // Check account lock
@@ -595,6 +608,7 @@ export async function disableMfa(userId: string, password: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('USER_NOT_FOUND');
 
+  if (!user.passwordHash) throw new Error('OAUTH_ONLY_ACCOUNT');
   const valid = await verifyPassword(user.passwordHash, password);
   if (!valid) throw new Error('INVALID_PASSWORD');
 
@@ -619,6 +633,7 @@ export async function changePassword(userId: string, currentPassword: string, ne
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('USER_NOT_FOUND');
 
+  if (!user.passwordHash) throw new Error('OAUTH_ONLY_ACCOUNT');
   const valid = await verifyPassword(user.passwordHash, currentPassword);
   if (!valid) throw new Error('INVALID_PASSWORD');
 
@@ -666,8 +681,13 @@ export async function getUserProfile(userId: string) {
       emailVerified: true,
       fullNameEnc: true,
       dateOfBirthEnc: true,
+      avatarUrl: true,
+      passwordHash: true,
       mfaEnabled: true,
       createdAt: true,
+      oauthAccounts: {
+        select: { provider: true },
+      },
     },
   });
 
@@ -678,18 +698,27 @@ export async function getUserProfile(userId: string) {
     email: user.email,
     emailVerified: user.emailVerified,
     fullName: decrypt(user.fullNameEnc),
-    dateOfBirth: decrypt(user.dateOfBirthEnc),
+    dateOfBirth: user.dateOfBirthEnc ? decrypt(user.dateOfBirthEnc) : null,
+    avatarUrl: user.avatarUrl,
+    hasPassword: !!user.passwordHash,
     mfaEnabled: user.mfaEnabled,
+    oauthProviders: user.oauthAccounts.map((oa) => oa.provider),
+    needsProfileCompletion: !user.dateOfBirthEnc,
     createdAt: user.createdAt,
   };
 }
 
-export async function deleteAccount(userId: string, password: string) {
+export async function deleteAccount(userId: string, password?: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('USER_NOT_FOUND');
 
-  const valid = await verifyPassword(user.passwordHash, password);
-  if (!valid) throw new Error('INVALID_PASSWORD');
+  // If user has a password, they must verify it
+  if (user.passwordHash) {
+    if (!password) throw new Error('INVALID_PASSWORD');
+    const valid = await verifyPassword(user.passwordHash, password);
+    if (!valid) throw new Error('INVALID_PASSWORD');
+  }
+  // OAuth-only users can delete without a password (they're already authenticated)
 
   // Soft delete
   await prisma.user.update({
@@ -773,7 +802,7 @@ export async function exportUserData(userId: string) {
     profile: {
       email: user.email,
       fullName: decrypt(user.fullNameEnc),
-      dateOfBirth: decrypt(user.dateOfBirthEnc),
+      dateOfBirth: user.dateOfBirthEnc ? decrypt(user.dateOfBirthEnc) : null,
       emailVerified: user.emailVerified,
       mfaEnabled: user.mfaEnabled,
       createdAt: user.createdAt,
@@ -796,4 +825,222 @@ export async function exportUserData(userId: string) {
   });
 
   return exportData;
+}
+
+// ─── Google OAuth ──────────────────────────────────────────────────────────
+
+export function getGoogleAuthUrl(): string {
+  // Generate CSRF state token
+  const state = crypto.randomBytes(32).toString('hex');
+
+  const url = googleClient.generateAuthUrl({
+    access_type: 'offline',
+    scope: [
+      'openid',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
+    ],
+    state,
+    prompt: 'consent',
+  });
+
+  return JSON.stringify({ url, state });
+}
+
+export interface GoogleCallbackResult {
+  accessToken: string;
+  refreshToken: string;
+  userId: string;
+  isNewUser: boolean;
+  needsProfileCompletion: boolean;
+}
+
+export async function handleGoogleCallback(
+  code: string,
+  ip?: string,
+  userAgent?: string
+): Promise<GoogleCallbackResult> {
+  // Exchange authorization code for tokens
+  const { tokens } = await googleClient.getToken(code);
+
+  if (!tokens.id_token) {
+    throw new Error('GOOGLE_NO_ID_TOKEN');
+  }
+
+  // Verify the ID token
+  const ticket = await googleClient.verifyIdToken({
+    idToken: tokens.id_token,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+  if (!payload || !payload.email) {
+    throw new Error('GOOGLE_INVALID_TOKEN');
+  }
+
+  const googleId = payload.sub;
+  const email = payload.email.toLowerCase().trim();
+  const emailVerified = payload.email_verified || false;
+  const fullName = payload.name || email.split('@')[0];
+  const avatarUrl = payload.picture || null;
+
+  // Check if we already have an OAuthAccount for this Google ID
+  const existingOAuth = await prisma.oAuthAccount.findUnique({
+    where: { provider_providerId: { provider: 'google', providerId: googleId } },
+    include: { user: true },
+  });
+
+  if (existingOAuth) {
+    // Existing OAuth user — just create a session
+    const user = existingOAuth.user;
+    if (user.deletedAt) {
+      throw new Error('ACCOUNT_DELETED');
+    }
+
+    // Update avatar if changed
+    if (avatarUrl && avatarUrl !== user.avatarUrl) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { avatarUrl },
+      });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        eventType: AUDIT_EVENTS.OAUTH_LOGIN,
+        ipAddress: ip,
+        userAgent,
+        metadata: { provider: 'google' },
+      },
+    });
+
+    const session = await createSession(user.id, ip, userAgent);
+    return {
+      ...session,
+      isNewUser: false,
+      needsProfileCompletion: !user.dateOfBirthEnc,
+    };
+  }
+
+  // No existing OAuth link — check if a user with this email exists
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+
+  if (existingUser) {
+    // Account exists with this email — apply linking rules
+    if (existingUser.deletedAt) {
+      throw new Error('ACCOUNT_DELETED');
+    }
+
+    // Safe to auto-link only if BOTH sides have verified email
+    if (emailVerified && existingUser.emailVerified) {
+      // Link the Google account to the existing user
+      await prisma.oAuthAccount.create({
+        data: {
+          userId: existingUser.id,
+          provider: 'google',
+          providerId: googleId,
+        },
+      });
+
+      // Update avatar if not set
+      if (avatarUrl && !existingUser.avatarUrl) {
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { avatarUrl },
+        });
+      }
+
+      await prisma.auditLog.create({
+        data: {
+          userId: existingUser.id,
+          eventType: AUDIT_EVENTS.OAUTH_LINK,
+          ipAddress: ip,
+          metadata: { provider: 'google', autoLinked: true },
+        },
+      });
+
+      const session = await createSession(existingUser.id, ip, userAgent);
+      return {
+        ...session,
+        isNewUser: false,
+        needsProfileCompletion: !existingUser.dateOfBirthEnc,
+      };
+    }
+
+    // Not safe to auto-link — user must log in with password first
+    throw new Error('ACCOUNT_EXISTS_LINK_REQUIRED');
+  }
+
+  // No existing user — create a new account
+  const fullNameEnc = encrypt(fullName);
+
+  const newUser = await prisma.user.create({
+    data: {
+      email,
+      emailVerified: emailVerified,
+      passwordHash: null,
+      fullNameEnc,
+      dateOfBirthEnc: null, // Will be completed in onboarding
+      avatarUrl,
+    },
+  });
+
+  // Create the OAuth link
+  await prisma.oAuthAccount.create({
+    data: {
+      userId: newUser.id,
+      provider: 'google',
+      providerId: googleId,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: newUser.id,
+      eventType: AUDIT_EVENTS.REGISTER,
+      ipAddress: ip,
+      metadata: { provider: 'google' },
+    },
+  });
+
+  const session = await createSession(newUser.id, ip, userAgent);
+  return {
+    ...session,
+    isNewUser: true,
+    needsProfileCompletion: true,
+  };
+}
+
+export async function completeProfile(userId: string, dateOfBirth: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('USER_NOT_FOUND');
+
+  // Validate age
+  const dob = new Date(dateOfBirth);
+  const today = new Date();
+  const age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())
+    ? age - 1
+    : age;
+
+  if (actualAge < 13) {
+    throw new Error('AGE_REQUIREMENT');
+  }
+
+  const dateOfBirthEnc = encrypt(dateOfBirth);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { dateOfBirthEnc },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId,
+      eventType: AUDIT_EVENTS.PROFILE_COMPLETE,
+      metadata: { field: 'dateOfBirth' },
+    },
+  });
 }
