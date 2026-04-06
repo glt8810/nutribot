@@ -1,23 +1,14 @@
 /**
- * AI Service — Claude API Integration
+ * AI Service — Local Gemma 4 via Ollama
  * Generates plan modules via structured prompts
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { Ollama } from 'ollama';
 import type { GoalType, ModuleType } from '../lib/constants';
 
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not set');
-    }
-    client = new Anthropic({ apiKey });
-  }
-  return client;
-}
+// Initialize Ollama client pointing to your local environment variable
+const ollama = new Ollama({ host: process.env.OLLAMA_HOST || 'http://localhost:11434' });
+const MODEL_NAME = 'gemma4'; // Ensure this matches the tag you downloaded
 
 const SYSTEM_PROMPT = `You are an expert nutritionist with 30 years of experience. You're encouraging, knowledgeable, and straight-talking. Like a brilliant friend who happens to have a nutrition degree and a genuine passion for helping people feel their best without giving up the foods they love.
 
@@ -40,12 +31,11 @@ IMPORTANT RULES:
 - JSON INTEGRITY: Even when generating content in another language, all JSON keys MUST remain exactly as defined in the English schema. Never translate the keys.`;
 
 function sanitizeInput(input: string): string {
-  // Remove potential prompt injection patterns
   return input
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/```/g, '') // Remove code fences
+    .replace(/<[^>]*>/g, '') 
+    .replace(/```/g, '') 
     .replace(/\b(ignore|disregard|forget|override|system|prompt|instruction)\b/gi, '[filtered]')
-    .substring(0, 5000); // Limit length
+    .substring(0, 5000); 
 }
 
 interface GenerationContext {
@@ -61,36 +51,26 @@ export async function generateModule(
   moduleType: ModuleType,
   context: GenerationContext
 ): Promise<any> {
-  const ai = getClient();
   const prompt = buildModulePrompt(moduleType, context);
 
   try {
-    const response = await ai.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
+    const response = await ollama.chat({
+      model: MODEL_NAME,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt }
+      ],
+      format: 'json', // Forces local model to output structured JSON
+      options: {
+        num_ctx: 8192, // Expands context window for large 7-day meal plans
+        temperature: 0.7
+      }
     });
 
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type');
-    }
-
-    // Parse JSON from response
-    let text = content.text;
-    // Extract JSON from markdown code blocks if present
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      text = jsonMatch[1];
-    }
-
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(response.message.content);
 
     // Content filter: check for inappropriate content
-    const filtered = filterContent(parsed, context.goalType);
-
-    return filtered;
+    return filterContent(parsed, context.goalType);
   } catch (err: any) {
     console.error(`[AI] Error generating ${moduleType}:`, err.message);
     throw new Error(`Failed to generate ${moduleType}: ${err.message}`);
@@ -103,8 +83,6 @@ export async function regenerateMeal(
   mealType: string,
   currentMealPlan: any
 ): Promise<any> {
-  const ai = getClient();
-
   const prompt = `Based on this person's profile, generate a SINGLE replacement ${mealType} for Day ${dayIndex + 1} of their meal plan.
 
 PERSON'S PROFILE:
@@ -130,21 +108,24 @@ Respond with ONLY valid JSON in this format:
   "tags": ["quick", "high-protein"]
 }`;
 
-  const response = await ai.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  try {
+    const response = await ollama.chat({
+      model: MODEL_NAME,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt }
+      ],
+      format: 'json',
+      options: {
+        num_predict: 1024
+      }
+    });
 
-  const content = response.content[0];
-  if (content.type !== 'text') throw new Error('Unexpected response type');
-
-  let text = content.text;
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (jsonMatch) text = jsonMatch[1];
-
-  return JSON.parse(text);
+    return JSON.parse(response.message.content);
+  } catch (err: any) {
+    console.error(`[AI] Error regenerating meal:`, err.message);
+    throw new Error(`Failed to regenerate meal: ${err.message}`);
+  }
 }
 
 function buildModulePrompt(moduleType: ModuleType, ctx: GenerationContext): string {

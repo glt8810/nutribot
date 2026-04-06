@@ -14,7 +14,6 @@
     "generate-keys": "tsx src/lib/generate-keys.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@prisma/client": "^6.4.0",
     "argon2": "^0.41.1",
     "cookie-parser": "^1.4.7",
@@ -26,6 +25,7 @@
     "helmet": "^8.0.0",
     "ioredis": "^5.4.1",
     "jose": "^5.9.0",
+    "ollama": "^0.6.3",
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^4.2.0",
