@@ -92,3 +92,7 @@ export const completeProfileSchema = z.object({
   message: 'You must be at least 13 years old',
   path: ['dateOfBirth'],
 });
+
+export const updateProfileSchema = z.object({
+  measurementSystem: z.enum(['metric', 'imperial']),
+});
