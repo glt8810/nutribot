@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# testing
+coverage/
+
+# next.js
+/.next/
+/out/
+build/
+
+# misc
+.DS_Store
+*.pem
+*.log
+
+# env
+.env*
+!.env.example
+
+# database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# typescript
+*.tsbuildinfo

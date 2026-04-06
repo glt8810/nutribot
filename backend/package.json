@@ -1,0 +1,48 @@
+{
+  "name": "nutribot-backend",
+  "version": "1.0.0",
+  "description": "AI-Powered Nutritionist App — Backend API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "generate-keys": "tsx src/lib/generate-keys.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@prisma/client": "^6.4.0",
+    "argon2": "^0.41.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.5.0",
+    "google-auth-library": "^10.6.2",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.1",
+    "jose": "^5.9.0",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4",
+    "rate-limit-redis": "^4.2.0",
+    "uuid": "^11.0.0",
+    "zod": "^3.24.0",
+    "zxcvbn": "^4.4.2"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/uuid": "^10.0.0",
+    "@types/zxcvbn": "^4.4.5",
+    "prisma": "^6.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
