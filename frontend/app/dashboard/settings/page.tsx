@@ -224,8 +224,8 @@ export default function SettingsPage() {
                         }
                       }}
                     >
-                      <option value="metric">Metric (cm, kg)</option>
-                      <option value="imperial">Imperial (ft/in, lbs)</option>
+                      <option value="metric" className="bg-slate-800 text-white">Metric (cm, kg)</option>
+                      <option value="imperial" className="bg-slate-800 text-white">Imperial (ft/in, lbs)</option>
                     </select>
                   </div>
                 </div>
