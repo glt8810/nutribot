@@ -162,7 +162,7 @@ export default function LandingPage() {
             Ready to transform your nutrition?
           </h2>
           <p className="text-slate-400 mb-8 text-lg">
-            Join thousands who've already ditched generic diet plans for something that actually works.
+            Join thousands who&apos;ve already ditched generic diet plans for something that actually works.
           </p>
           <Link href="/auth/register" className="btn-primary text-lg !px-10 !py-4">
             Start Your Journey — Free →

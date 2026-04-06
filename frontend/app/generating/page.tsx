@@ -53,6 +53,7 @@ function GeneratingContent() {
         setStatus('done');
       } catch (err) {
         if (!mounted) return;
+        console.error(err);
         setError('Something went wrong during plan generation.');
         setStatus('error');
       }

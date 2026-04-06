@@ -70,7 +70,7 @@ router.post('/:goalId/intake', authMiddleware, validateBody(saveIntakeSchema), a
   try {
     // Verify goal ownership
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.goalId, userId: req.userId! },
+      where: { id: req.params.goalId as string, userId: req.userId! },
     });
 
     if (!goal) {
@@ -113,7 +113,7 @@ router.post('/:goalId/intake', authMiddleware, validateBody(saveIntakeSchema), a
 router.get('/:goalId/intake', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.goalId, userId: req.userId! },
+      where: { id: req.params.goalId as string, userId: req.userId! },
     });
 
     if (!goal) {
@@ -151,7 +151,7 @@ router.get('/:goalId/intake', authMiddleware, async (req: AuthRequest, res: Resp
 router.delete('/:goalId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.goalId, userId: req.userId! },
+      where: { id: req.params.goalId as string, userId: req.userId! },
     });
 
     if (!goal) {

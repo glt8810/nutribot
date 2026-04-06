@@ -25,7 +25,7 @@ router.post('/generate/:goalId', authMiddleware, aiGenerationLimiter, async (req
       return res.status(403).json({ error: 'Please verify your email to generate plans.' });
     }
 
-    const result = await generatePlan(req.userId!, req.params.goalId);
+    const result = await generatePlan(req.userId!, req.params.goalId as string);
     res.json(result);
   } catch (err: any) {
     if (err.message === 'GOAL_NOT_FOUND') {
@@ -67,7 +67,7 @@ router.get('/active', authMiddleware, async (req: AuthRequest, res: Response) =>
 // GET /plans/:planId — Get a specific plan
 router.get('/:planId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const plan = await getPlan(req.userId!, req.params.planId);
+    const plan = await getPlan(req.userId!, req.params.planId as string);
     res.json(plan);
   } catch (err: any) {
     if (err.message === 'PLAN_NOT_FOUND') {
@@ -81,7 +81,7 @@ router.get('/:planId', authMiddleware, async (req: AuthRequest, res: Response) =
 // POST /plans/:planId/modules/:moduleId/regenerate — Regenerate a module
 router.post('/:planId/modules/:moduleId/regenerate', authMiddleware, aiGenerationLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const data = await regenerateModule(req.userId!, req.params.planId, req.params.moduleId);
+    const data = await regenerateModule(req.userId!, req.params.planId as string, req.params.moduleId as string);
     res.json(data);
   } catch (err: any) {
     if (err.message === 'MODULE_NOT_FOUND') {
@@ -97,8 +97,8 @@ router.post('/:planId/modules/:moduleId/regenerate-meal', authMiddleware, valida
   try {
     const meal = await regenerateSingleMeal(
       req.userId!,
-      req.params.planId,
-      req.params.moduleId,
+      req.params.planId as string,
+      req.params.moduleId as string,
       req.body.dayIndex,
       req.body.mealType
     );
@@ -115,7 +115,7 @@ router.post('/:planId/modules/:moduleId/regenerate-meal', authMiddleware, valida
 // POST /plans/modules/:moduleId/feedback — Add meal feedback
 router.post('/modules/:moduleId/feedback', authMiddleware, validateBody(mealFeedbackSchema), async (req: AuthRequest, res: Response) => {
   try {
-    await addMealFeedback(req.userId!, req.params.moduleId, req.body.dayIndex, req.body.mealType, req.body.feedback);
+    await addMealFeedback(req.userId!, req.params.moduleId as string, req.body.dayIndex, req.body.mealType, req.body.feedback);
     res.json({ message: 'Feedback recorded.' });
   } catch (err: any) {
     if (err.message === 'MODULE_NOT_FOUND') {

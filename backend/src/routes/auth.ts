@@ -106,6 +106,10 @@ router.post('/login', loginLimiter, validateBody(loginSchema), async (req: Reque
       return res.json({ requireMfa: true, userId: result.userId });
     }
 
+    if (!('refreshToken' in result) || !('accessToken' in result)) {
+      throw new Error('Unexpected result from loginUser');
+    }
+
     // Set refresh token cookie
     res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
@@ -331,7 +335,7 @@ router.get('/sessions', authMiddleware, async (req: AuthRequest, res: Response) 
 // DELETE /auth/sessions/:sessionId (authenticated)
 router.delete('/sessions/:sessionId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    await revokeSession(req.userId!, req.params.sessionId);
+    await revokeSession(req.userId!, req.params.sessionId as string);
     res.json({ message: 'Session revoked.' });
   } catch (err) {
     console.error('[Auth] Revoke session error:', err);

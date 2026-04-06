@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import zxcvbn from 'zxcvbn';
 import { useAuth } from '@/lib/auth-context';
+import Image from 'next/image';
 import { apiFetch } from '@/lib/api';
 
 export default function SettingsPage() {
@@ -237,7 +238,7 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <p className="text-slate-400 text-sm">Scan this QR code with your authenticator app:</p>
                     <div className="flex justify-center">
-                      <img src={mfaSetup.qrCode} alt="MFA QR Code" className="rounded-xl" style={{ width: 200, height: 200 }} />
+                      <Image src={mfaSetup.qrCode} alt="MFA QR Code" className="rounded-xl" width={200} height={200} />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-amber-400 mb-2">⚠️ Save these backup codes — you won&apos;t see them again:</p>
@@ -264,7 +265,7 @@ export default function SettingsPage() {
                   <div key={s.id} className="glass-card p-4 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">{s.userAgent?.substring(0, 50) || 'Unknown device'}...</p>
-                      <p className="text-xs text-slate-500">IP: {s.ipAddress || 'unknown'} · Created: {new Date(s.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-slate-500">IP: {s.ipAddress || 'any'} · Created: {new Date(s.createdAt).toLocaleString()}</p>
                     </div>
                     <button onClick={() => handleRevokeSession(s.id)} className="btn-ghost text-xs text-red-400 hover:text-red-300">Revoke</button>
                   </div>

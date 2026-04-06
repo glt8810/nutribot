@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { apiFetch, setAccessToken, getAccessToken, apiLogout } from './api';
+import { apiFetch, setAccessToken, apiLogout } from './api';
 
 interface User {
   id: string;

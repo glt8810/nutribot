@@ -1,13 +1,13 @@
 'use client';
 import { useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import zxcvbn from 'zxcvbn';
 import { apiResetPassword } from '@/lib/api';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+
   const token = searchParams.get('token');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

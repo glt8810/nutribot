@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import zxcvbn from 'zxcvbn';
 import { apiRegister } from '@/lib/api';
 
 export default function RegisterPage() {
-  const router = useRouter();
+
   const [form, setForm] = useState({
     fullName: '', email: '', password: '', confirmPassword: '',
     dateOfBirth: '', consent: false, referralSource: '',

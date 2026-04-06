@@ -100,7 +100,7 @@ export async function generatePlan(userId: string, goalId: string) {
         foodPrefs: intakeData.my_food_prefs,
         snackHabits: intakeData.my_snack_habits,
         calculations,
-      },
+      } as any,
       expiresAt: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // 4 weeks
     },
   });
