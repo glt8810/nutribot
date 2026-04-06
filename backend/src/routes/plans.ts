@@ -4,7 +4,8 @@ import { aiGenerationLimiter } from '../middleware/rate-limit';
 import { validateBody } from '../middleware/validation';
 import { regenerateMealSchema, mealFeedbackSchema } from '../validators/intake';
 import {
-  generatePlan,
+  startPlanGeneration,
+  getPlanStatus,
   getPlan,
   getActivePlan,
   getUserPlans,
@@ -15,7 +16,7 @@ import {
 
 const router = Router();
 
-// POST /plans/generate/:goalId — Generate a full plan
+// POST /plans/generate/:goalId — Kick off async plan generation
 router.post('/generate/:goalId', authMiddleware, aiGenerationLimiter, async (req: AuthRequest, res: Response) => {
   try {
     // Check email verification
@@ -25,8 +26,8 @@ router.post('/generate/:goalId', authMiddleware, aiGenerationLimiter, async (req
       return res.status(403).json({ error: 'Please verify your email to generate plans.' });
     }
 
-    const result = await generatePlan(req.userId!, req.params.goalId as string);
-    res.json(result);
+    const planId = await startPlanGeneration(req.userId!, req.params.goalId as string);
+    res.json({ planId, status: 'generating' });
   } catch (err: any) {
     if (err.message === 'GOAL_NOT_FOUND') {
       return res.status(404).json({ error: 'Goal not found.' });
@@ -36,6 +37,20 @@ router.post('/generate/:goalId', authMiddleware, aiGenerationLimiter, async (req
     }
     console.error('[Plans] Generate error:', err);
     res.status(500).json({ error: 'Plan generation failed. Please try again.' });
+  }
+});
+
+// GET /plans/:planId/status — Poll generation progress
+router.get('/:planId/status', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await getPlanStatus(req.userId!, req.params.planId as string);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'PLAN_NOT_FOUND') {
+      return res.status(404).json({ error: 'Plan not found.' });
+    }
+    console.error('[Plans] Status error:', err);
+    res.status(500).json({ error: 'Failed to get plan status.' });
   }
 });
 

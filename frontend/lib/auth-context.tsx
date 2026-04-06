@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           method: 'POST',
           credentials: 'include',
         });
-        if (res.ok) {
+        if (res.ok && res.status !== 204) {
           const data = await res.json();
           setAccessToken(data.accessToken);
           await fetchUser();

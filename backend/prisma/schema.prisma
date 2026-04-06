@@ -143,6 +143,7 @@ model NutritionPlan {
   goalId           String    @map("goal_id")
   planVersion      Int       @default(1) @map("plan_version")
   generationParams Json?     @map("generation_params")
+  generationStatus String    @default("complete") @map("generation_status") // generating | complete | failed
   isActive         Boolean   @default(true) @map("is_active")
   createdAt        DateTime  @default(now()) @map("created_at")
   expiresAt        DateTime? @map("expires_at")
@@ -155,12 +156,14 @@ model NutritionPlan {
 }
 
 model PlanModule {
-  id               String         @id @default(uuid())
-  planId           String         @map("plan_id")
-  moduleType       String         @map("module_type")
-  moduleData       Json           @map("module_data")
-  generatedAt      DateTime       @default(now()) @map("generated_at")
-  regeneratedCount Int            @default(0) @map("regenerated_count")
+  id                  String    @id @default(uuid())
+  planId              String    @map("plan_id")
+  moduleType          String    @map("module_type")
+  moduleData          Json      @map("module_data")
+  generatedAt         DateTime  @default(now()) @map("generated_at")
+  regeneratedCount    Int       @default(0) @map("regenerated_count")
+  generationStartedAt DateTime? @map("generation_started_at")
+  generationMs        Int?      @map("generation_ms")
 
   plan         NutritionPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   mealFeedback MealFeedback[]

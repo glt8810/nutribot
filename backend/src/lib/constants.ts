@@ -89,7 +89,7 @@ export const RATE_LIMITS = {
   RESET_PER_IP: { max: 10, windowMs: 60 * 60 * 1000 },
   UNAUTHENTICATED: { max: 20, windowMs: 60 * 1000 },
   AUTHENTICATED: { max: 60, windowMs: 60 * 1000 },
-  AI_GENERATION: { max: 5, windowMs: 60 * 60 * 1000 },
+  AI_GENERATION: { max: process.env.NODE_ENV === 'development' ? 100 : 5, windowMs: 60 * 60 * 1000 },
 } as const;
 
 // Goal-specific module mapping

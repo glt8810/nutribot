@@ -8,7 +8,7 @@ import type { GoalType, ModuleType } from '../lib/constants';
 
 // Initialize Ollama client pointing to your local environment variable
 const ollama = new Ollama({ host: process.env.OLLAMA_HOST || 'http://localhost:11434' });
-const MODEL_NAME = 'gemma4'; // Ensure this matches the tag you downloaded
+const MODEL_NAME = 'gemma4:e4b'; // Ensure this matches the tag you downloaded
 
 const SYSTEM_PROMPT = `You are an expert nutritionist with 30 years of experience. You're encouraging, knowledgeable, and straight-talking. Like a brilliant friend who happens to have a nutrition degree and a genuine passion for helping people feel their best without giving up the foods they love.
 
@@ -54,20 +54,28 @@ export async function generateModule(
   const prompt = buildModulePrompt(moduleType, context);
 
   try {
-    const response = await ollama.chat({
+    // Use streaming to keep the TCP connection active during long generation
+    // (non-streaming causes NAT/firewall to kill idle connections at ~5 min)
+    const stream = await ollama.chat({
       model: MODEL_NAME,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: prompt }
       ],
       format: 'json', // Forces local model to output structured JSON
+      stream: true,
       options: {
         num_ctx: 8192, // Expands context window for large 7-day meal plans
         temperature: 0.7
       }
     });
 
-    const parsed = JSON.parse(response.message.content);
+    let rawContent = '';
+    for await (const chunk of stream) {
+      rawContent += chunk.message.content;
+    }
+
+    const parsed = JSON.parse(rawContent);
 
     // Content filter: check for inappropriate content
     return filterContent(parsed, context.goalType);
@@ -109,19 +117,25 @@ Respond with ONLY valid JSON in this format:
 }`;
 
   try {
-    const response = await ollama.chat({
+    const stream = await ollama.chat({
       model: MODEL_NAME,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: prompt }
       ],
       format: 'json',
+      stream: true,
       options: {
         num_predict: 1024
       }
     });
 
-    return JSON.parse(response.message.content);
+    let rawContent = '';
+    for await (const chunk of stream) {
+      rawContent += chunk.message.content;
+    }
+
+    return JSON.parse(rawContent);
   } catch (err: any) {
     console.error(`[AI] Error regenerating meal:`, err.message);
     throw new Error(`Failed to regenerate meal: ${err.message}`);

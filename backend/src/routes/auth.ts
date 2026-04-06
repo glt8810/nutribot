@@ -56,8 +56,15 @@ const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
-  path: '/auth/refresh',
+  path: '/api/auth/refresh',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
+const CLEAR_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/api/auth/refresh',
 };
 
 // POST /auth/register
@@ -165,7 +172,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
-      return res.status(401).json({ error: 'No refresh token', code: 'NO_REFRESH_TOKEN' });
+      return res.status(204).end();
     }
 
     const result = await refreshSession(refreshToken, req.ip, req.headers['user-agent']);
@@ -174,7 +181,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     res.json({ accessToken: result.accessToken });
   } catch (err: any) {
     if (err.message === 'INVALID_REFRESH_TOKEN') {
-      res.clearCookie('refreshToken', { path: '/auth/refresh' });
+      res.clearCookie('refreshToken', CLEAR_COOKIE_OPTIONS);
       return res.status(401).json({ error: 'Invalid refresh token', code: 'INVALID_REFRESH_TOKEN' });
     }
     console.error('[Auth] Refresh error:', err);
@@ -189,7 +196,7 @@ router.post('/logout', async (req: Request, res: Response) => {
     if (refreshToken) {
       await logout(refreshToken);
     }
-    res.clearCookie('refreshToken', { path: '/auth/refresh' });
+    res.clearCookie('refreshToken', CLEAR_COOKIE_OPTIONS);
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
     console.error('[Auth] Logout error:', err);
@@ -201,7 +208,7 @@ router.post('/logout', async (req: Request, res: Response) => {
 router.post('/logout-all', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     await logoutAll(req.userId!);
-    res.clearCookie('refreshToken', { path: '/auth/refresh' });
+    res.clearCookie('refreshToken', CLEAR_COOKIE_OPTIONS);
     res.json({ message: 'All sessions terminated' });
   } catch (err) {
     console.error('[Auth] Logout all error:', err);
@@ -376,7 +383,7 @@ router.get('/export-data', authMiddleware, async (req: AuthRequest, res: Respons
 router.post('/delete-account', authMiddleware, validateBody(deleteAccountSchema), async (req: AuthRequest, res: Response) => {
   try {
     await deleteAccount(req.userId!, req.body.password);
-    res.clearCookie('refreshToken', { path: '/auth/refresh' });
+    res.clearCookie('refreshToken', CLEAR_COOKIE_OPTIONS);
     res.json({ message: 'Account scheduled for deletion. You have 30 days to cancel by logging in.' });
   } catch (err: any) {
     if (err.message === 'INVALID_PASSWORD') {
@@ -449,7 +456,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      path: '/auth/refresh',
+      path: '/api/auth/refresh',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

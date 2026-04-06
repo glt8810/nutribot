@@ -66,7 +66,7 @@ function buildCalculations(stats: any, lifestyle: any, goalType: GoalType) {
   };
 }
 
-export async function generatePlan(userId: string, goalId: string) {
+export async function startPlanGeneration(userId: string, goalId: string): Promise<string> {
   // Verify ownership
   const goal = await prisma.goal.findFirst({
     where: { id: goalId, userId },
@@ -90,10 +90,11 @@ export async function generatePlan(userId: string, goalId: string) {
     data: { isActive: false },
   });
 
-  // Create plan record
+  // Create plan record with "generating" status
   const plan = await prisma.nutritionPlan.create({
     data: {
       goalId,
+      generationStatus: 'generating',
       generationParams: {
         stats: intakeData.my_stats,
         lifestyle: intakeData.my_lifestyle,
@@ -105,11 +106,8 @@ export async function generatePlan(userId: string, goalId: string) {
     },
   });
 
-  // Determine which modules to generate
   const modulesToGenerate = GOAL_MODULES[goal.goalType as GoalType] || [];
-
   const extras = goal.extrasEnc ? decryptJSON(goal.extrasEnc) : {};
-
   const context = {
     goalType: goal.goalType as GoalType,
     stats: intakeData.my_stats,
@@ -120,64 +118,141 @@ export async function generatePlan(userId: string, goalId: string) {
     calculations,
   };
 
-  // Generate modules sequentially (to manage API rate limits)
-  const generatedModules: any[] = [];
+  // Kick off generation in the background — do NOT await
+  runPlanGeneration(plan.id, userId, goal.goalType, context, modulesToGenerate).catch(err => {
+    console.error(`[Plan] Background generation failed for plan ${plan.id}:`, err.message);
+  });
 
-  for (const moduleType of modulesToGenerate) {
-    try {
-      const moduleData = await generateModule(moduleType, context);
+  return plan.id;
+}
 
-      const module = await prisma.planModule.create({
+async function runPlanGeneration(
+  planId: string,
+  userId: string,
+  goalType: string,
+  context: any,
+  modulesToGenerate: ModuleType[]
+): Promise<void> {
+  // Pre-create all module records so the status endpoint can track them immediately
+  const moduleRecords = await Promise.all(
+    modulesToGenerate.map(moduleType =>
+      prisma.planModule.create({
         data: {
-          planId: plan.id,
+          planId,
           moduleType,
-          moduleData,
+          moduleData: { pending: true },
+          generationStartedAt: new Date(),
         },
-      });
+      })
+    )
+  );
 
-      generatedModules.push({
-        id: module.id,
-        moduleType,
-        status: 'completed',
-      });
-    } catch (err: any) {
-      console.error(`[Plan] Failed to generate module ${moduleType}:`, err.message);
+  // Generate all modules in parallel (Ollama will queue them internally)
+  const results = await Promise.allSettled(
+    moduleRecords.map(async (moduleRecord) => {
+      const startMs = Date.now();
+      try {
+        const moduleData = await generateModule(moduleRecord.moduleType as ModuleType, context);
+        await prisma.planModule.update({
+          where: { id: moduleRecord.id },
+          data: {
+            moduleData,
+            generationMs: Date.now() - startMs,
+          },
+        });
+      } catch (err: any) {
+        console.error(`[Plan] Failed to generate module ${moduleRecord.moduleType}:`, err.message);
+        await prisma.planModule.update({
+          where: { id: moduleRecord.id },
+          data: {
+            moduleData: { error: true, message: err.message },
+            generationMs: Date.now() - startMs,
+          },
+        });
+      }
+    })
+  );
 
-      // Store error state
-      const module = await prisma.planModule.create({
-        data: {
-          planId: plan.id,
-          moduleType,
-          moduleData: { error: true, message: err.message },
-        },
-      });
+  const completedCount = results.filter(r => r.status === 'fulfilled').length;
 
-      generatedModules.push({
-        id: module.id,
-        moduleType,
-        status: 'error',
-        error: err.message,
-      });
-    }
-  }
+  await prisma.nutritionPlan.update({
+    where: { id: planId },
+    data: { generationStatus: 'complete' },
+  });
 
-  // Audit log
   await prisma.auditLog.create({
     data: {
       userId,
       eventType: AUDIT_EVENTS.PLAN_GENERATED,
       metadata: {
-        planId: plan.id,
-        goalType: goal.goalType,
-        modulesGenerated: generatedModules.length,
-        modulesSuccessful: generatedModules.filter(m => m.status === 'completed').length,
+        planId,
+        goalType,
+        modulesGenerated: modulesToGenerate.length,
+        modulesCompleted: completedCount,
+      },
+    },
+  });
+}
+
+export async function getPlanStatus(userId: string, planId: string) {
+  const plan = await prisma.nutritionPlan.findFirst({
+    where: { id: planId, goal: { userId } },
+    select: {
+      id: true,
+      generationStatus: true,
+      goal: { select: { goalType: true } },
+      modules: {
+        select: {
+          id: true,
+          moduleType: true,
+          generationStartedAt: true,
+          generationMs: true,
+        },
+        orderBy: { generationStartedAt: 'asc' },
       },
     },
   });
 
+  if (!plan) throw new Error('PLAN_NOT_FOUND');
+
+  const expectedModuleTypes = GOAL_MODULES[plan.goal.goalType as GoalType] || [];
+
+  // Completed = has generationMs recorded
+  const completedModules = plan.modules
+    .filter(m => m.generationMs !== null)
+    .map(m => ({ id: m.id, moduleType: m.moduleType, generationMs: m.generationMs }));
+
+  // Active = started but not yet finished
+  const activeModule = plan.modules.find(m => m.generationStartedAt && m.generationMs === null);
+
+  // Historical averages per module type across ALL plans (to estimate pending modules)
+  const historicalAvgs = await prisma.planModule.groupBy({
+    by: ['moduleType'],
+    where: { generationMs: { not: null } },
+    _avg: { generationMs: true },
+    _count: { generationMs: true },
+  });
+
+  const moduleEstimates: Record<string, { avgMs: number; sampleCount: number } | null> = {};
+  for (const row of historicalAvgs) {
+    if (row._avg.generationMs !== null) {
+      moduleEstimates[row.moduleType] = {
+        avgMs: Math.round(row._avg.generationMs),
+        sampleCount: row._count.generationMs,
+      };
+    }
+  }
+
   return {
     planId: plan.id,
-    modules: generatedModules,
+    status: plan.generationStatus,
+    completedModules,
+    activeModule: activeModule
+      ? { moduleType: activeModule.moduleType, startedAt: activeModule.generationStartedAt }
+      : null,
+    expectedModuleTypes,
+    totalModules: expectedModuleTypes.length,
+    moduleEstimates,
   };
 }
 
