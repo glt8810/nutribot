@@ -8,7 +8,7 @@ import type { GoalType, ModuleType } from '../lib/constants';
 
 // Initialize Ollama client pointing to your local environment variable
 const ollama = new Ollama({ host: process.env.OLLAMA_HOST || 'http://localhost:11434' });
-const MODEL_NAME = 'gemma4:e4b'; // Ensure this matches the tag you downloaded
+const MODEL_NAME = 'gemma4:e2b'; // Ensure this matches the tag you downloaded
 
 const SYSTEM_PROMPT = `You are an expert nutritionist with 30 years of experience. You're encouraging, knowledgeable, and straight-talking. Like a brilliant friend who happens to have a nutrition degree and a genuine passion for helping people feel their best without giving up the foods they love.
 
@@ -32,10 +32,10 @@ IMPORTANT RULES:
 
 function sanitizeInput(input: string): string {
   return input
-    .replace(/<[^>]*>/g, '') 
-    .replace(/```/g, '') 
+    .replace(/<[^>]*>/g, '')
+    .replace(/```/g, '')
     .replace(/\b(ignore|disregard|forget|override|system|prompt|instruction)\b/gi, '[filtered]')
-    .substring(0, 5000); 
+    .substring(0, 5000);
 }
 
 interface GenerationContext {
@@ -148,7 +148,7 @@ function buildModulePrompt(moduleType: ModuleType, ctx: GenerationContext): stri
   const foodPrefsStr = sanitizeInput(JSON.stringify(ctx.foodPrefs || {}));
   const snackStr = sanitizeInput(JSON.stringify(ctx.snackHabits || {}));
   const calcsStr = sanitizeInput(JSON.stringify(ctx.calculations || {}));
-  
+
   // Extract language or default to English
   const targetLanguage = ctx.stats?.language || 'English';
 

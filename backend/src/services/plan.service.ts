@@ -141,39 +141,46 @@ async function runPlanGeneration(
           planId,
           moduleType,
           moduleData: { pending: true },
-          generationStartedAt: new Date(),
+          // REMOVED: generationStartedAt so they don't all look "active" at once
         },
       })
     )
   );
 
-  // Generate all modules in parallel (Ollama will queue them internally)
-  const results = await Promise.allSettled(
-    moduleRecords.map(async (moduleRecord) => {
-      const startMs = Date.now();
-      try {
-        const moduleData = await generateModule(moduleRecord.moduleType as ModuleType, context);
-        await prisma.planModule.update({
-          where: { id: moduleRecord.id },
-          data: {
-            moduleData,
-            generationMs: Date.now() - startMs,
-          },
-        });
-      } catch (err: any) {
-        console.error(`[Plan] Failed to generate module ${moduleRecord.moduleType}:`, err.message);
-        await prisma.planModule.update({
-          where: { id: moduleRecord.id },
-          data: {
-            moduleData: { error: true, message: err.message },
-            generationMs: Date.now() - startMs,
-          },
-        });
-      }
-    })
-  );
+  let completedCount = 0;
 
-  const completedCount = results.filter(r => r.status === 'fulfilled').length;
+  for (const moduleRecord of moduleRecords) {
+    // 1. Mark ONLY this specific module as actively generating for the frontend
+    await prisma.planModule.update({
+      where: { id: moduleRecord.id },
+      data: { generationStartedAt: new Date() }
+    });
+
+    const startMs = Date.now();
+    try {
+      // 2. Generate the content via Ollama
+      const moduleData = await generateModule(moduleRecord.moduleType as ModuleType, context);
+
+      // 3. Save the completed module and record how long it took
+      await prisma.planModule.update({
+        where: { id: moduleRecord.id },
+        data: {
+          moduleData,
+          generationMs: Date.now() - startMs,
+        },
+      });
+      completedCount++;
+    } catch (err: any) {
+      console.error(`[Plan] Failed to generate module ${moduleRecord.moduleType}:`, err.message);
+      await prisma.planModule.update({
+        where: { id: moduleRecord.id },
+        data: {
+          moduleData: { error: true, message: err.message },
+          generationMs: Date.now() - startMs,
+        },
+      });
+    }
+  }
 
   await prisma.nutritionPlan.update({
     where: { id: planId },
